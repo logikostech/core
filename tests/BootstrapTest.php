@@ -3,6 +3,7 @@
 namespace Logikos\Tests;
 
 use Logikos\Bootstrap;
+use Phalcon\Di;
 
 class BootstrapTest extends \PHPUnit_Framework_TestCase {
   static $di;
@@ -11,7 +12,10 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     require_once substr(__DIR__.'/',0,strrpos(__DIR__.'/','/tests/')+7).'bootstrap.php';
     static::$di = \Phalcon\Di::getDefault();
   }
-
+  public function setUp() {
+    static::$di = new Di();
+    Di::setDefault(static::$di);
+  }
   public function testConstantsAreSet() {
     $b = $this->getBootstrap();
     $this->assertTrue(defined('BASE_DIR'));
@@ -32,9 +36,10 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     $this->assertEquals('bar', static::$di->get('config')->foo);
   }
 
-  protected function getBootstrap() {
-    return new Bootstrap(static::$di,[
-        'basedir' => realpath(__DIR__)
-    ]);
+  protected function getBootstrap($options=null) {
+    if (is_null($options))
+      $options = ['basedir'=>__DIR__];
+    
+    return new Bootstrap(static::$di,$options);
   }
 }

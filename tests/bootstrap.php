@@ -8,7 +8,3 @@ $composer_autoloader = TESTS_DIR . "/../vendor/autoload.php";
 
 if (file_exists($composer_autoloader))
   include_once $composer_autoloader;
-
-$di = new Di();
-
-Phalcon\DI::setDefault($di);

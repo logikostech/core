@@ -47,10 +47,13 @@ class Bootstrap {
   
   public function __construct(Di $di=null,array $userOptions = null) {
     $this->setDi($di);
-    $this->initOptions($userOptions);
-    $this->initEventsManager();
-    $this->initConfig();
-    $this->initApplication();
+    $this->initOptions($di,$userOptions);
+    $this->initEventsManager($di);
+    $config = $this->initConfig($di);
+    
+    //$this->initLoader($config);
+    
+    $this->initApplication($di, $config);
   }
   protected function setDi($di) {
     if (!$di instanceof Di)
@@ -62,7 +65,7 @@ class Bootstrap {
   public function getDi() {
     return $this->_di;
   }
-  protected function initOptions($userOptions) {
+  protected function initOptions(Di $di,$userOptions) {
     $this->_setDefaultUserOptions($this->_defaultOptions);
     if (is_array($userOptions))
       $this->mergeUserOptions($userOptions);
@@ -112,14 +115,14 @@ class Bootstrap {
         return realpath($dir);
   }
   
-  protected function initEventsManager() {
+  protected function initEventsManager(Di $di) {
     $em = $this->getUserOption('eventman');
     
     if (!$em instanceof EventsManager)
       $em = new EventsManager();
     
     $em->enablePriorities(true);
-    $this->getDi()->setShared('eventsManager', $em);
+    $di->setShared('eventsManager', $em);
   }
   
   protected function loadEnv() {
@@ -152,7 +155,7 @@ class Bootstrap {
    * @param string $confdir
    * @return \Phalcon\Config
    */
-  protected function initConfig() {
+  protected function initConfig(Di $di) {
     $config  = $this->getUserOption('config');
     $confdir = $this->getUserOption('confdir');
     
@@ -163,7 +166,8 @@ class Bootstrap {
     $this->mergeConfigFile($config, $confdir.'/'.APP_ENV.'.php');
     
     $this->config = $config;
-    $this->getDi()->setShared('config', $config);
+    $di->setShared('config', $config);
+    return $config;
   }
   protected function mergeConfigFile(Config &$config,$file) {
     if (is_readable($file)) {
@@ -177,11 +181,11 @@ class Bootstrap {
     }
   }
   
-  protected function initApplication() {
+  protected function initApplication(Di $di, Config $config) {
     $app = $this->getUserOption('app');
     if (!$app instanceof Application)
       $app = new Application;
     $this->app = $app;
-    $this->getDi()->setShared('app', $app);
+    $di->setShared('app', $app);
   }
 }
