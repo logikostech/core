@@ -16,6 +16,7 @@ use Phalcon\Error\Handler as ErrorHandler;
 use Phalcon\Events\Manager as EventsManager;
 use Phalcon\Logger\Adapter\File as FileLogger;
 use Phalcon\Mvc\Model\Manager as ModelsManager;
+use Phalcon\Phalcon;
 
 class Bootstrap {
   use \Logikos\UserOptionTrait;
@@ -51,7 +52,7 @@ class Bootstrap {
     $this->initEventsManager($di);
     $config = $this->initConfig($di);
     
-    //$this->initLoader($config);
+    $this->initLoader($config);
     
     $this->initApplication($di, $config);
   }
@@ -125,9 +126,12 @@ class Bootstrap {
     $di->setShared('eventsManager', $em);
   }
   
-  protected function loadEnv() {
-    if (file_exists($this->getUserOption('confdir').'/.env')) {
-      $dotenv = new \Dotenv\Dotenv($this->getUserOption('confdir'));
+  public function loadEnv($file=null) {
+    if (is_null($file))
+      $file = $this->getUserOption('confdir').'/.env';
+    
+    if (file_exists($file)) {
+      $dotenv = new \Dotenv\Dotenv(dirname($file),basename($file));
       $dotenv->load();
     }
     
@@ -135,6 +139,7 @@ class Bootstrap {
       define('APP_ENV', getenv('APP_ENV') ?: static::ENV_PRODUCTION);
     
     switch (APP_ENV) {
+      case static::ENV_TESTING :
       case static::ENV_DEVELOPMENT : {
         ini_set('display_errors', 1);
         ini_set('display_startup_errors', 1);
@@ -143,10 +148,13 @@ class Bootstrap {
           ini_set('xdebug.collect_params', 4);
         break;
       }
+      case static::ENV_STAGING :
       case static::ENV_PRODUCTION : {
+        ini_set('display_errors', 0);
+        ini_set('display_startup_errors', 0);
+        error_reporting(0);
         if (!headers_sent())
           header_remove('X-Powered-By');
-        error_reporting(E_ALL ^ E_NOTICE);
       }
     }
   }
@@ -172,7 +180,7 @@ class Bootstrap {
   protected function mergeConfigFile(Config &$config,$file) {
     if (is_readable($file)) {
       $mergeconf = include $file;
-
+      
       if (is_array($mergeconf))
         $mergeconf = new Config($mergeconf);
       
@@ -181,10 +189,23 @@ class Bootstrap {
     }
   }
   
+  protected function initLoader(Config $config) {
+    $loader = new Loader();
+    
+    if (isset($config->autoload->dir) && $config->autoload->dir instanceof Config)
+      $loader->registerDirs($config->autoload->dir->toArray());
+    
+    if (isset($config->autoload->namespace) && $config->autoload->namespace instanceof Config)
+      $loader->registerNamespaces($config->autoload->namespace->toArray());
+    
+    $loader->register();
+  }
+  
   protected function initApplication(Di $di, Config $config) {
     $app = $this->getUserOption('app');
     if (!$app instanceof Application)
       $app = new Application;
+    $app->setEventsManager($di->get('eventsManager'));
     $this->app = $app;
     $di->setShared('app', $app);
   }

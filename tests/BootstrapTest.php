@@ -35,11 +35,65 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     $b = $this->getBootstrap();
     $this->assertEquals('bar', static::$di->get('config')->foo);
   }
-
-  protected function getBootstrap($options=null) {
-    if (is_null($options))
-      $options = ['basedir'=>__DIR__];
-    
-    return new Bootstrap(static::$di,$options);
+  
+  public function testAutoloadFromdir() {
+    $b = $this->getBootstrap([
+        'config' => [
+            'autoload' => [
+                'dir' => [
+                    APP_DIR.'/library/'
+                ]
+            ]
+        ]
+    ]);
+    # Example of what the above config should do...  
+//     (new \Phalcon\Loader)->registerDirs([
+//         APP_DIR.'/library/'
+//     ])->register();
+    $this->assertCanLoadClass('LogikosTest\A\B');
   }
+  public function testAutoloadByNamespace() {
+    $b = $this->getBootstrap([
+        'config' => [
+            'autoload' => [
+                'namespace' => [
+                    'LTest' => APP_DIR.'/library/'
+                ]
+            ]
+        ]
+    ]);
+    # Example of what the above config should do...  
+//     (new \Phalcon\Loader)->registerNamespaces([
+//         'LTest' => APP_DIR.'/library/'
+//     ])->register();
+    $this->assertCanLoadClass('LTest\Foo\Bar');
+  }
+  public function testModuleRouting() {
+    $b = $this->getBootstrap([
+        'config' => [
+            'modules' => [
+                'frontend' => [
+                    'className' => 'LT\Frontend\Module',
+                    'path'      => APP_DIR.'/module/frontend'
+                ]
+            ]
+        ]
+    ]);
+  }
+  
+  
+  protected function assertCanLoadClass($className) {
+    $this->assertTrue(class_exists($className),"Failed to load class '{$className}'");
+  }
+  protected function getBootstrap($options=[]) {
+    return new Bootstrap(
+        static::$di,
+        array_merge(
+            ['basedir'=>__DIR__],
+            $options
+        )
+    );
+  }
+  
+  
 }
