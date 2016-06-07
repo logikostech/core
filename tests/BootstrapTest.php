@@ -3,14 +3,19 @@
 namespace Logikos\Tests;
 
 use Logikos\Bootstrap;
-use Phalcon\Di;
+use Phalcon\Di\FactoryDefault as Di;
+use Phalcon\Di\Injectable;
+use Phalcon\Mvc\User\Plugin;
+use Logikos\Logikos;
 
 class BootstrapTest extends \PHPUnit_Framework_TestCase {
   static $di;
-
+  
+  const IS_DEFAULT_MODULE = 1;
+  const NOT_DEFAULT_MODULE = 0;
+  
   public static function setUpBeforeClass() {
-    require_once substr(__DIR__.'/',0,strrpos(__DIR__.'/','/tests/')+7).'bootstrap.php';
-    static::$di = \Phalcon\Di::getDefault();
+    require_once substr(__DIR__.'/',0,strrpos(__DIR__.'/','/tests/')+7).'_bootstrap.php';
   }
   public function setUp() {
     static::$di = new Di();
@@ -68,20 +73,91 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
 //     ])->register();
     $this->assertCanLoadClass('LTest\Foo\Bar');
   }
-  public function testModuleRouting() {
-    $b = $this->getBootstrap([
-        'config' => [
-            'modules' => [
-                'frontend' => [
-                    'className' => 'LT\Frontend\Module',
-                    'path'      => APP_DIR.'/module/frontend'
-                ]
-            ]
-        ]
-    ]);
+  
+  public function testUsePreconfiguredApplication() {
+    $app = new \Phalcon\Mvc\Application;
+    $app->foo = 'bar';
+    $b = $this->getBootstrap(['app' => $app]);
+    $this->assertEquals('bar',$b->app->foo);
+  }
+  
+  public function testStartMvcApplication() {
+    $b = $this->getBootstrap();
+    $this->assertInstanceOf('Phalcon\Mvc\Application', $b->mvcApp());
   }
   
   
+
+  public function testDefaultModuleRouting() {
+    $uri = 'foo/bar/arg1';
+    $app = $this->getModuleBootstrap()->mvcApp();
+    $this->assertRouteWorks($uri,self::IS_DEFAULT_MODULE);
+  }
+  public function testOtherModuleRouting() {
+    $uri = 'backend/foo/bar/arg1';
+    $app = $this->getModuleBootstrap()->mvcApp();
+    $this->assertRouteWorks($uri,self::NOT_DEFAULT_MODULE);
+  }
+  public function testSetDefaultModuleViaConfig() {
+    $config = [
+        'modules' => $this->getModules(),
+        'defaultModule' => 'backend'
+    ];
+    $app = (new Bootstrap(
+        static::$di,
+        [
+            'basedir' => __DIR__,
+            'config' => $config
+        ]
+    ))->mvcApp();
+    $this->assertEquals('backend',$app->getDefaultModule());
+    $this->assertRouteWorks('foo/bar',self::IS_DEFAULT_MODULE);
+  }
+  public function testSetDefaultModuleViaUseroptions() {
+    $config = [
+        'modules' => $this->getModules()
+    ];
+    $app = (new Bootstrap(
+        static::$di,
+        [
+            'basedir' => __DIR__,
+            'defaultModule' => 'backend',
+            'config' => $config
+        ]
+    ))->mvcApp();
+    $this->assertEquals('backend',$app->getDefaultModule());
+    $this->assertRouteWorks('foo/bar',self::IS_DEFAULT_MODULE);
+  }
+  protected function assertRouteWorks($uri,$usesDefaultModule=false) {
+    $uri    = '/'.trim($uri,'/');
+    $uriarg = explode('/',trim($uri,'/'));
+    $router = $this->di()->router;
+    $router->handle($uri);
+    $defaultModule = $this->di()->app->getDefaultModule();
+
+    if ($usesDefaultModule == self::IS_DEFAULT_MODULE) {
+      $this->assertEquals($defaultModule, $router->getModuleName());
+      $this->assertEquals($uriarg[0], $router->getControllerName());
+      $this->assertEquals($uriarg[1], $router->getActionName());
+    }
+    else {
+      $this->assertEquals($uriarg[0], $router->getModuleName());
+      $this->assertEquals($uriarg[1], $router->getControllerName());
+      $this->assertEquals($uriarg[2], $router->getActionName());
+    }
+  }
+  
+  /**
+   * @return \Phalcon\Mvc\User\Plugin
+   */
+  protected function di() {
+    static $cache;
+    if (!$cache) {
+      $cache = new Plugin;
+      $cache->setDI(static::$di);
+    }
+    return $cache;
+  }
   protected function assertCanLoadClass($className) {
     $this->assertTrue(class_exists($className),"Failed to load class '{$className}'");
   }
@@ -94,6 +170,34 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
         )
     );
   }
+  protected function getModuleBootstrap($modules=[],$default=null) {
+    if (empty($modules))
+      $modules = $this->getModules();
+    
+    $options = [
+        'config' => [
+            'modules' => $modules
+        ]
+    ];
+    if ($default)
+      $options['defaultModule'] = $default;
+//      $options['config']['defaultModule'] = $default;
+    
+    return $this->getBootstrap($options);
+  }
   
+
+  private function getModules() {
+    return [
+        'frontend' => [
+            'className' => 'LT\Frontend\Module',
+            'path'      => APP_DIR.'modules/frontend'
+        ],
+        'backend' => [
+            'className' => 'LT\Backend\Module',
+            'path'      => APP_DIR.'modules/backend'
+        ]
+    ];
+  }
   
 }
