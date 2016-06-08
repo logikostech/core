@@ -16,8 +16,10 @@ use Phalcon\Error\Handler as ErrorHandler;
 use Phalcon\Events\Manager as EventsManager;
 use Phalcon\Logger\Adapter\File as FileLogger;
 use Phalcon\Mvc\Model\Manager as ModelsManager;
+use Phalcon\Di\Injectable;
+use Logikos\Application\Bootstrap\Module;
 
-class Bootstrap {
+class Bootstrap extends Injectable {
   use \Logikos\UserOptionTrait;
   
   private $_defaultOptions = [
@@ -50,6 +52,7 @@ class Bootstrap {
     $this->setDi($di);
     $this->initOptions($di,$userOptions);
     $this->initEventsManager($di);
+    Di::setDefault($di);
   }
   
   public function run() {
@@ -76,17 +79,6 @@ class Bootstrap {
    */
   public function getApp() {
     return $this->app?:$this->run()->app;
-  }
-  
-  protected function setDi($di) {
-    if (!$di instanceof Di)
-      $di = \Phalcon\Di::getDefault() ?: new FactoryDefault();
-    
-    $this->_di = $di;
-    \Phalcon\Di::setDefault($di);
-  }
-  public function getDi() {
-    return $this->_di;
   }
   
   
@@ -231,128 +223,21 @@ class Bootstrap {
     $loader->register();
   }
   
-  
   protected function initModules() {
-    
-    $detected = $this->_detectModuleConf();
-    $fromconf = $this->config->get('modules',[]);
-    $modconf  = $this->_mergeModConf($detected,$fromconf);
-    $modarray = $modconf->toArray();
-    
-    if (count($modarray)) {
-      $this->app->registerModules($modarray);
-      $this->autosetDefaultModule(array_keys($modarray));
-      $this->autoRouteModules();
-    }
-  }
-  protected function autosetDefaultModule(array $mods) {
-    $default = $this->config->get(
-        'defaultModule',
-        $this->getUserOption('defaultModule')
-    );
-    if (!$default && in_array('frontend',$mods))
-      $default = 'frontend';
-    
-    if ($default)
-      $this->setDefaultModule($default);
-  }
-  
-  public function setDefaultModule($default) {
-    $this->app->setDefaultModule($default);
-    $this->getDi()->get('router')->setDefaultModule($default);
-  }
-  private function _detectModuleConf() {
-    $mods     = $this->_getPotentialModuleFiles();
-    $classes  = $this->_getPotentialModuleClasses();
-    $modconf  = [];
-    foreach($mods as $modname => $modfile) {
-      $search = $modname.'\Module';
-      foreach($classes as $i=>$fqcn) {
-        $findin = substr($fqcn,-1*strlen($search));
-        if (strtolower($findin)==strtolower($search)) {
-          $modconf[$modname] = ['className' => $fqcn,'path' => $modfile];
-          break;
-        }
-      }
-    }
-    return $modconf;
-  }
-  private function _getPotentialModuleFiles() {
-    // loop though potential module dirs
-    $dirs = glob(APP_DIR.'modules/*',GLOB_ONLYDIR);
-    $mods = [];
-    foreach($dirs as $dir) {
-      $dir = realpath($dir);
-      $modname = basename($dir);
-      $modfile = $dir.'/Module.php';
-      if (file_exists($modfile)) {
-        require_once $modfile;
-        $mods[$modname] = $modfile;
-      }
-    }
-    return $mods;
-  }
-  private function _getPotentialModuleClasses() {
-    // array of potential module classes
-    $classes = array_filter(get_declared_classes(),function($name){
-      if (substr(strtolower($name),-7)=='\module') {
-        $rc = new \ReflectionClass($name);
-        return $rc->implementsInterface('Phalcon\Mvc\ModuleDefinitionInterface');
-      }
-      return false;
-    });
-    return $classes;
-  }
-  private function _mergeModConf($conf,$merge) {
-    if (!$conf instanceof Config) {
-      if (!is_array($conf))
-        $conf = array();
-      $conf = new Config($conf);
-    }
-    if (!$merge instanceof Config) {
-      if (!is_array($merge))
-        $merge = array();
-      $merge = new Config($merge);
-    }
-    return $conf->merge($merge);
-  }
-  
-  
-  protected function autoRouteModules() {
-    $default = $this->app->getDefaultModule();
-    $mods = $this->app->getModules();
-    if (count($mods)) {
-      // note, it is important that the default module is registered first..
-      // though if user uses Phalcon\Mvc\Router these default routes are not needed
-      if (isset($mods[$default]))
-        $this->routeModule($default, true);
+    $modconf = $this->config->get('modules',[]);
+    if (count($modconf)) {
+      $default = $this->config->get(
+          'defaultModule',
+          $this->getUserOption('defaultModule')
+      );
       
-      foreach ($mods as $key => $module)
-        if ($key != $default)
-          $this->routeModule($key, false);
+      $this->modules = new Modules(
+          $this->getDi(),
+          $this->app,
+          $modconf,
+          $default?:'frontend'
+      );
     }
-  }
-  protected function routeModule($key,$default=false) {
-    $router  = $this->getDi()->get('router');
-    $mod = $default ? '' : "/{$key}";
-    $router->add("{$mod}/:params", array(
-        'module' => $key,
-        'controller' => 'index',
-        'action' => 'index',
-        'params' => 1
-    ))->setName($key);
-    $router->add("{$mod}/:controller/:params", array(
-        'module' => $key,
-        'controller' => 1,
-        'action' => 'index',
-        'params' => 2
-    ));
-    $router->add("{$mod}/:controller/:action/:params", array(
-        'module' => $key,
-        'controller' => 1,
-        'action' => 2,
-        'params' => 3
-    ));
   }
   
 }
