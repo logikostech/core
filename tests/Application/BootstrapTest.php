@@ -1,43 +1,46 @@
 <?php
 
-namespace Logikos\Tests;
+namespace Logikos\Tests\Application;
 
-use Logikos\Bootstrap;
+use Logikos\Application\Bootstrap;
 use Phalcon\Di\FactoryDefault as Di;
 use Phalcon\Di\Injectable;
 use Phalcon\Mvc\User\Plugin;
-use Logikos\Logikos;
 
 class BootstrapTest extends \PHPUnit_Framework_TestCase {
   static $di;
+  static $basedir;
   
   const IS_DEFAULT_MODULE = 1;
   const NOT_DEFAULT_MODULE = 0;
   
   public static function setUpBeforeClass() {
-    require_once substr(__DIR__.'/',0,strrpos(__DIR__.'/','/tests/')+7).'_bootstrap.php';
+    static::$basedir = realpath(substr(__DIR__.'/',0,strrpos(__DIR__.'/','/tests/')+7));
+    require_once static::$basedir.'/_bootstrap.php';
   }
   public function setUp() {
     static::$di = new Di();
     Di::setDefault(static::$di);
   }
   public function testConstantsAreSet() {
-    $b = $this->getBootstrap();
-    $this->assertTrue(defined('BASE_DIR'));
-    $this->assertTrue(defined('APP_DIR'));
-    $this->assertTrue(defined('CONF_DIR'));
+    $b = $this->getBootstrap()->run();
+    $this->assertTrue(defined('BASE_DIR'),'BASE_DIR not defined');
+    $this->assertTrue(defined('APP_DIR'),'APP_DIR not defined');
+    $this->assertTrue(defined('CONF_DIR'),'CONF_DIR not defined');
   }
   public function testConfigIsInDi() {
     $b = new Bootstrap(static::$di);
+    $b->run();
     $this->assertInstanceOf('Phalcon\\Config', static::$di->get('config'));
   }
   public function testEnvLoaded() {
     $b = $this->getBootstrap();
-    $this->assertTrue(defined('APP_ENV'));
     $this->assertEquals('development', getenv('APP_ENV'));
+    $b->run();
+    $this->assertTrue(defined('APP_ENV'));
   }
   public function testConfigFileLoaded() {
-    $b = $this->getBootstrap();
+    $b = $this->getBootstrap()->run();
     $this->assertEquals('bar', static::$di->get('config')->foo);
   }
   
@@ -51,6 +54,7 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
             ]
         ]
     ]);
+    $b->run();
     # Example of what the above config should do...  
 //     (new \Phalcon\Loader)->registerDirs([
 //         APP_DIR.'/library/'
@@ -67,6 +71,7 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
             ]
         ]
     ]);
+    $b->run();
     # Example of what the above config should do...  
 //     (new \Phalcon\Loader)->registerNamespaces([
 //         'LTest' => APP_DIR.'/library/'
@@ -77,25 +82,25 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
   public function testUsePreconfiguredApplication() {
     $app = new \Phalcon\Mvc\Application;
     $app->foo = 'bar';
-    $b = $this->getBootstrap(['app' => $app]);
+    $b = $this->getBootstrap(['app' => $app])->run();
     $this->assertEquals('bar',$b->app->foo);
   }
   
   public function testStartMvcApplication() {
     $b = $this->getBootstrap();
-    $this->assertInstanceOf('Phalcon\Mvc\Application', $b->mvcApp());
+    $this->assertInstanceOf('Phalcon\Mvc\Application', $b->getApp());
   }
   
   
 
   public function testDefaultModuleRouting() {
     $uri = 'foo/bar/arg1';
-    $app = $this->getModuleBootstrap()->mvcApp();
+    $app = $this->getModuleBootstrap()->getApp();
     $this->assertRouteWorks($uri,self::IS_DEFAULT_MODULE);
   }
   public function testOtherModuleRouting() {
     $uri = 'backend/foo/bar/arg1';
-    $app = $this->getModuleBootstrap()->mvcApp();
+    $app = $this->getModuleBootstrap()->getApp();
     $this->assertRouteWorks($uri,self::NOT_DEFAULT_MODULE);
   }
   public function testSetDefaultModuleViaConfig() {
@@ -106,10 +111,10 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     $app = (new Bootstrap(
         static::$di,
         [
-            'basedir' => __DIR__,
+            'basedir' => static::$basedir,
             'config' => $config
         ]
-    ))->mvcApp();
+    ))->getApp();
     $this->assertEquals('backend',$app->getDefaultModule());
     $this->assertRouteWorks('foo/bar',self::IS_DEFAULT_MODULE);
   }
@@ -117,14 +122,15 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     $config = [
         'modules' => $this->getModules()
     ];
+    
     $app = (new Bootstrap(
         static::$di,
         [
-            'basedir' => __DIR__,
+            'basedir' => static::$basedir,
             'defaultModule' => 'backend',
             'config' => $config
         ]
-    ))->mvcApp();
+    ))->getApp();
     $this->assertEquals('backend',$app->getDefaultModule());
     $this->assertRouteWorks('foo/bar',self::IS_DEFAULT_MODULE);
   }
@@ -165,7 +171,7 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     return new Bootstrap(
         static::$di,
         array_merge(
-            ['basedir'=>__DIR__],
+            ['basedir'=>static::$basedir],
             $options
         )
     );

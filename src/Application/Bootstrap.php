@@ -1,6 +1,6 @@
 <?php
 
-namespace Logikos;
+namespace Logikos\Application;
 
 
 use Phalcon\Di;
@@ -26,7 +26,7 @@ class Bootstrap {
       'appdir'   => null,
       'config'   => null,
       'app'      => null,
-      'eventman' => null,
+      'eventsManager' => null,
       'env'      => 'development',
       'defaultModule' => 'frontend'
   ];
@@ -50,13 +50,34 @@ class Bootstrap {
     $this->setDi($di);
     $this->initOptions($di,$userOptions);
     $this->initEventsManager($di);
+  }
+  
+  public function run() {
+    if (!defined('APP_ENV'))
+      define('APP_ENV', getenv('APP_ENV') ?: static::ENV_PRODUCTION);
+    
+    $di     = $this->getDi();
     $config = $this->initConfig($di);
     
-    $this->initLoader($config);
+    if ($config->get('autoload'))
+      $this->initLoader($config->get('autoload'));
     
-//     $this->initApplication($di, $config);
-//     $this->initModules($config);
+    $this->app = $this->getUserOption('app',new Application);
+    $this->app->setDI($di);
+    $this->app->setEventsManager($di->get('eventsManager'));
+    $this->initModules();
+    
+    $di->setShared('app', $this->app);
+    return $this;
   }
+
+  /**
+   * @return \Phalcon\Mvc\Application
+   */
+  public function getApp() {
+    return $this->app?:$this->run()->app;
+  }
+  
   protected function setDi($di) {
     if (!$di instanceof Di)
       $di = \Phalcon\Di::getDefault() ?: new FactoryDefault();
@@ -83,6 +104,7 @@ class Bootstrap {
   protected function checkBasedir() {
     $dir = $this->getUserOption('basedir');
     $default = substr(__FILE__,0,strrpos($dir,'/vendor/'));
+   
     $this->_checkDir('basedir',$default,'BASE_DIR');
   }
   protected function checkAppdir() {
@@ -92,8 +114,7 @@ class Bootstrap {
     $this->_checkDir('confdir',$this->findConfdir(),'CONF_DIR');
   }
   private function _checkDir($option,$default,$constant=null) {
-    $dir = $this->getUserOption($option) ?: $default;
-    
+    $dir = $this->getUserOption($option,$default);
     if ($dir && is_dir($dir)) {
       $dir = realpath($dir);
       $this->setUserOption($option,$dir);    
@@ -121,7 +142,7 @@ class Bootstrap {
   }
   
   protected function initEventsManager(Di $di) {
-    $em = $this->getUserOption('eventman');
+    $em = $this->getUserOption('eventsManager');
     
     if (!$em instanceof EventsManager)
       $em = new EventsManager();
@@ -139,10 +160,10 @@ class Bootstrap {
       $dotenv->load();
     }
     
-    if (!defined('APP_ENV'))
-      define('APP_ENV', getenv('APP_ENV') ?: static::ENV_PRODUCTION);
+    if (!getenv('APP_ENV'))
+      putenv("APP_ENV=".static::ENV_PRODUCTION);
     
-    switch (APP_ENV) {
+    switch (getenv('APP_ENV')) {
       case static::ENV_TESTING :
       case static::ENV_DEVELOPMENT : {
         ini_set('display_errors', 1);
@@ -180,7 +201,7 @@ class Bootstrap {
       $config = new Config(is_array($config)?$config:[]);
     
     $this->mergeConfigFile($config, $confdir.'/config.php');
-    $this->mergeConfigFile($config, $confdir.'/'.APP_ENV.'.php');
+    $this->mergeConfigFile($config, $confdir.'/'.getenv('APP_ENV').'.php');
     
     $this->config = $config;
     $di->setShared('config', $config);
@@ -197,67 +218,48 @@ class Bootstrap {
         $config->merge($mergeconf);
     }
   }
-  
-  protected function initLoader(Config $config) {
+
+  protected function initLoader(Config $autoload) {
     $loader = new Loader();
     
-    if (isset($config->autoload->dir) && $config->autoload->dir instanceof Config)
-      $loader->registerDirs($config->autoload->dir->toArray());
+    if ($autoload->get('dir') instanceof Config)
+      $loader->registerDirs($autoload->get('dir')->toArray());
     
-    if (isset($config->autoload->namespace) && $config->autoload->namespace instanceof Config)
-      $loader->registerNamespaces($config->autoload->namespace->toArray());
+    if ($autoload->get('namespace') instanceof Config)
+      $loader->registerNamespaces($autoload->get('namespace')->toArray());
     
     $loader->register();
   }
   
-  /**
-   * @return \Phalcon\Mvc\Application
-   */
-  public function mvcApp() {
-    if (!$this->app) {
-      $di  = $this->getDi();
-      $app = $this->getUserOption('app');
-      if (!$app instanceof Application)
-        $app = new Application;
-      $di->set('app',$app);
-      $app->setDI($di);
-      $app->setEventsManager($di->get('eventsManager'));
-      $this->app = $app;
-      $di->setShared('app', $app);
-      $this->initModules();
-    }
-    return $this->app;
-  }
   
   protected function initModules() {
+    
     $detected = $this->_detectModuleConf();
-    $fromconf = isset($this->config->modules)?$this->config->modules:[];
+    $fromconf = $this->config->get('modules',[]);
     $modconf  = $this->_mergeModConf($detected,$fromconf);
     $modarray = $modconf->toArray();
     
     if (count($modarray)) {
       $this->app->registerModules($modarray);
-      $this->autosetDefaultModule($modarray);
+      $this->autosetDefaultModule(array_keys($modarray));
       $this->autoRouteModules();
     }
   }
-  protected function autosetDefaultModule($modarray) {
-    $mods = array_keys($modarray);
-    $default = null;
-    if (isset($this->config->defaultModule))
-      $default = $this->config->defaultModule;
-    elseif ($this->getUserOption('defaultModule'))
-      $default = $this->getUserOption('defaultModule');
-    elseif (count($modarray)) {
-      if (in_array('frontend',$mods))
-      $default = key($modarray);
-    }
+  protected function autosetDefaultModule(array $mods) {
+    $default = $this->config->get(
+        'defaultModule',
+        $this->getUserOption('defaultModule')
+    );
+    if (!$default && in_array('frontend',$mods))
+      $default = 'frontend';
+    
     if ($default)
       $this->setDefaultModule($default);
   }
-  public function setDefaultModule($defaultmod) {
-    $this->app->setDefaultModule($defaultmod);
-    $this->getDi()->get('router')->setDefaultModule($defaultmod);
+  
+  public function setDefaultModule($default) {
+    $this->app->setDefaultModule($default);
+    $this->getDi()->get('router')->setDefaultModule($default);
   }
   private function _detectModuleConf() {
     $mods     = $this->_getPotentialModuleFiles();
