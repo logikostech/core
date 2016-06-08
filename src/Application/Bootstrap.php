@@ -17,7 +17,7 @@ use Phalcon\Events\Manager as EventsManager;
 use Phalcon\Logger\Adapter\File as FileLogger;
 use Phalcon\Mvc\Model\Manager as ModelsManager;
 use Phalcon\Di\Injectable;
-use Logikos\Application\Bootstrap\Module;
+use Logikos\Application\Bootstrap\Modules;
 
 class Bootstrap extends Injectable {
   use \Logikos\UserOptionTrait;
