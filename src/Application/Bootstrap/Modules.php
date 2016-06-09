@@ -22,8 +22,11 @@ class Modules extends Injectable {
   public $config;
   
 
-  public function __construct(Di $di, Application $app, Config $config, $default=null) {
+  public function __construct(Di $di, Application $app, $config=[], $default=null) {
     $this->setDi($di);
+    if (!$config instanceof Config)
+      $config = new Config(is_array($config)?$config:[]);
+    
     $this->app    = $app;
     $this->config = $config;
     if (count($config)) {
