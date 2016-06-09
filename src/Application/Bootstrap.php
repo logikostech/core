@@ -53,7 +53,7 @@ class Bootstrap extends Injectable {
   const ENV_DEVELOPMENT = 'development';
   const ENV_TESTING     = 'testing';
   
-  public function __construct(Di $di=null,array $userOptions = null) {
+  public function __construct(Di $di=null, array $userOptions = null) {
     $this->setDi($di);
     $this->initOptions($di,$userOptions);
     $this->initEventsManager($di);
@@ -73,7 +73,8 @@ class Bootstrap extends Injectable {
     $this->app = $this->getUserOption('app',new Application);
     $this->app->setDI($di);
     $this->app->setEventsManager($di->get('eventsManager'));
-    $this->initModules();
+    if ($this->_shouldAutoloadModules())
+      $this->initModules($this->_moduleConfig(), $this->_moduleOptions());
     
     $di->setShared('app', $this->app);
     return $this;
@@ -227,21 +228,29 @@ class Bootstrap extends Injectable {
     
     $loader->register();
   }
-  
-  protected function initModules() {
-    $modconf = $this->config->get('modules',[]);
-    $default = $this->app->getDefaultModule() ?: $this->config->get(
-        'defaultModule',
-        $this->getUserOption('defaultModule')
+  protected function _shouldAutoloadModules() {
+    $modconfset = !empty($this->_moduleConfig()->toArray());
+    $defaultmodset = !empty($this->_moduleOptions()['defaultModule']);
+    return $modconfset || $defaultmodset;
+  }
+  /**
+   * @return \Phalcon\Config
+   */
+  protected function _moduleConfig() {
+    return $this->config->get('modules',new Config([]));
+  }
+  protected function _moduleOptions() {
+    return [
+        'defaultModule' => $this->config->get('defaultModule',$this->getUserOption('defaultModule')),
+    ];
+  }
+  public function initModules($modconf, $options=null) {
+    $this->modules = new Modules(
+        $this->getDi(),
+        $this->getApp(),
+        $modconf,
+        $options
     );
-    if ($default || count($modconf)) {
-      $this->modules = new Modules(
-          $this->getDi(),
-          $this->app,
-          $modconf,
-          $default?:'frontend'
-      );
-    }
   }
   
 }

@@ -9,7 +9,7 @@ use Phalcon\Mvc\Application;
 use Phalcon\Di\Injectable;
 
 class Modules extends Injectable {
-  
+  use \Logikos\UserOptionTrait;
   
   /**
    * @var Application
@@ -20,16 +20,23 @@ class Modules extends Injectable {
    * @var Config
    */
   public $config;
-  
 
-  public function __construct(Di $di, Application $app, $config=[], $default=null) {
+  private $_defaultOptions = [
+      'defaultModule' => 'frontend'
+  ];
+  
+  public function __construct(Di $di, Application $app, $config=[], array $userOptions = null) {
     $this->setDi($di);
     if (!$config instanceof Config)
       $config = new Config(is_array($config)?$config:[]);
-    
+  
+
     $this->app    = $app;
     $this->config = $config;
+    $this->initOptions($di,$userOptions);
+
     if (count($config)) {
+      $default  = $this->getDefaultModule();
       $detected = $this->_detectModuleConf();
       $modconf  = $this->_mergeModConf($detected,$config);
       $modarray = $modconf->toArray();
@@ -44,11 +51,34 @@ class Modules extends Injectable {
       }
     }
   }
-  
-  public function modlist() {
-    return array_keys($this->app->getModules());
+  /**
+   * @return \Phalcon\Mvc\Application
+   */
+  public function getApp() {
+    return $this->app;
   }
-
+  public function modlist() {
+    return array_keys($this->getApp()->getModules());
+  }
+  public function getDefaultModule() {
+    return $this->app->getDefaultModule() ?: $this->getUserOption('defaultModule');
+  }
+  public function getModulesDir() {
+    $dir = rtrim($this->getUserOption('modulesDir'),'/').'/';
+    
+    if (!$dir && defined('APP_DIR') && is_dir(APP_DIR.'modules'))
+      $dir = APP_DIR.'modules';
+    
+    if ($dir && !is_dir($dir))
+      throw new Exception("modulesDir does not exist: '{$dir}'");
+    
+    return $dir;
+  }
+  protected function initOptions(Di $di,$userOptions) {
+    $this->_setDefaultUserOptions($this->_defaultOptions);
+    if (is_array($userOptions))
+      $this->mergeUserOptions($userOptions);
+  }
   private function _detectModuleConf() {
     $mods     = $this->_getPotentialModuleFiles();
     $classes  = $this->_getPotentialModuleClasses();
@@ -67,7 +97,7 @@ class Modules extends Injectable {
   }
   private function _getPotentialModuleFiles() {
     // loop though potential module dirs
-    $dirs = glob(APP_DIR.'modules/*',GLOB_ONLYDIR);
+    $dirs = glob($this->getModulesDir().'*',GLOB_ONLYDIR);
     $mods = [];
     foreach($dirs as $dir) {
       $dir = realpath($dir);
