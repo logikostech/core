@@ -43,6 +43,11 @@ class Bootstrap extends Injectable {
    */
   public $config;
   
+  /**
+   * @var Modules
+   */
+  public $modules;
+  
   const ENV_PRODUCTION  = 'production';
   const ENV_STAGING     = 'staging';
   const ENV_DEVELOPMENT = 'development';
@@ -225,12 +230,11 @@ class Bootstrap extends Injectable {
   
   protected function initModules() {
     $modconf = $this->config->get('modules',[]);
-    if (count($modconf)) {
-      $default = $this->config->get(
-          'defaultModule',
-          $this->getUserOption('defaultModule')
-      );
-      
+    $default = $this->app->getDefaultModule() ?: $this->config->get(
+        'defaultModule',
+        $this->getUserOption('defaultModule')
+    );
+    if ($default || count($modconf)) {
       $this->modules = new Modules(
           $this->getDi(),
           $this->app,
