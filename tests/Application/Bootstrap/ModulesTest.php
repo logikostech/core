@@ -72,14 +72,20 @@ class ModulesTest extends \PHPUnit_Framework_TestCase {
     $this->assertEquals('backend',$app->getDefaultModule());
     $this->assertRouteWorks('foo/bar',self::IS_DEFAULT_MODULE);
   }
-
+  public function testNoConfigDefaults() {
+    $b = $this->getBootstrap();
+    $b->initModules();
+    $this->assertEquals('frontend',$b->getApp()->getDefaultModule());
+    $this->assertRouteWorks('foo/bar',self::IS_DEFAULT_MODULE);
+  }
   public function testManualBootstrapInitModules() {
+    $userOptions = [
+        'defaultModule' => 'backend'
+    ];
     $b = $this->getBootstrap();
     $b->initModules(
         $this->getModules(),
-        [
-            'defaultModule' => 'backend'
-        ]
+        $userOptions
     );
     $this->assertEquals('backend',$b->getApp()->getDefaultModule());
     $this->assertRouteWorks('foo/bar',self::IS_DEFAULT_MODULE);

@@ -26,29 +26,27 @@ class Modules extends Injectable {
   ];
   
   public function __construct(Di $di, Application $app, $config=[], array $userOptions = null) {
+  
     $this->setDi($di);
     if (!$config instanceof Config)
       $config = new Config(is_array($config)?$config:[]);
   
-
     $this->app    = $app;
     $this->config = $config;
     $this->initOptions($di,$userOptions);
 
-    if (count($config)) {
-      $default  = $this->getDefaultModule();
-      $detected = $this->_detectModuleConf();
-      $modconf  = $this->_mergeModConf($detected,$config);
-      $modarray = $modconf->toArray();
-      
-      if (count($modarray)) {
-        $app->registerModules($modarray);
-        if (in_array($default,array_keys($modarray))) {
-          $app->setDefaultModule($default);
-          $this->router->setDefaultModule($default);
-        }
-        $this->autoRouteModules($app);
+    $default  = $this->getDefaultModule();
+    $detected = $this->_detectModuleConf();
+    $modconf  = $this->_mergeModConf($detected,$config);
+    $modarray = $modconf->toArray();
+    
+    if (count($modarray)) {
+      $app->registerModules($modarray);
+      if (in_array($default,array_keys($modarray))) {
+        $app->setDefaultModule($default);
+        $this->router->setDefaultModule($default);
       }
+      $this->autoRouteModules($app);
     }
   }
   /**
@@ -64,7 +62,7 @@ class Modules extends Injectable {
     return $this->app->getDefaultModule() ?: $this->getUserOption('defaultModule');
   }
   public function getModulesDir() {
-    $dir = rtrim($this->getUserOption('modulesDir'),'/').'/';
+    $dir =$this->getUserOption('modulesDir');
     
     if (!$dir && defined('APP_DIR') && is_dir(APP_DIR.'modules'))
       $dir = APP_DIR.'modules';
@@ -72,7 +70,7 @@ class Modules extends Injectable {
     if ($dir && !is_dir($dir))
       throw new Exception("modulesDir does not exist: '{$dir}'");
     
-    return $dir;
+    return rtrim($dir,'/').'/';
   }
   protected function initOptions(Di $di,$userOptions) {
     $this->_setDefaultUserOptions($this->_defaultOptions);
@@ -93,6 +91,7 @@ class Modules extends Injectable {
         }
       }
     }
+    
     return $modconf;
   }
   private function _getPotentialModuleFiles() {
@@ -108,6 +107,7 @@ class Modules extends Injectable {
         $mods[$modname] = $modfile;
       }
     }
+
     return $mods;
   }
 

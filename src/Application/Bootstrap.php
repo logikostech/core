@@ -30,7 +30,7 @@ class Bootstrap extends Injectable {
       'app'      => null,
       'eventsManager' => null,
       'env'      => 'development',
-      'defaultModule' => 'frontend'
+      'defaultModule' => null
   ];
   
   /**
@@ -244,7 +244,7 @@ class Bootstrap extends Injectable {
         'defaultModule' => $this->config->get('defaultModule',$this->getUserOption('defaultModule')),
     ];
   }
-  public function initModules($modconf, $options=null) {
+  public function initModules($modconf=null, $options=null) {
     $this->modules = new Modules(
         $this->getDi(),
         $this->getApp(),
