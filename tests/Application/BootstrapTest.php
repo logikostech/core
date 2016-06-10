@@ -21,6 +21,15 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
   public function setUp() {
     static::$di = new Di();
     Di::setDefault(static::$di);
+    putenv('APP_ENV');
+  }
+  public function testNewBootstrapNoOptions() {
+    $b = new Bootstrap();
+    $this->assertInstanceOf('Logikos\Application\Bootstrap', $b);
+  }
+  public function testNewBootstrapMinOptions() {
+    $b = $this->getBootstrap()->run();
+    $this->assertInstanceOf('Logikos\Application\Bootstrap', $b);
   }
   public function testConstantsAreSet() {
     $b = $this->getBootstrap()->run();
@@ -46,11 +55,9 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
   
   public function testAutoloadFromdir() {
     $b = $this->getBootstrap([
-        'config' => [
-            'autoload' => [
-                'dir' => [
-                    APP_DIR.'/library/'
-                ]
+        'autoload' => [
+            'dir' => [
+                APP_DIR.'/library/'
             ]
         ]
     ]);
@@ -63,11 +70,9 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
   }
   public function testAutoloadByNamespace() {
     $b = $this->getBootstrap([
-        'config' => [
-            'autoload' => [
-                'namespace' => [
-                    'LTest' => APP_DIR.'/library/'
-                ]
+        'autoload' => [
+            'namespace' => [
+                'LTest' => APP_DIR.'/library/'
             ]
         ]
     ]);

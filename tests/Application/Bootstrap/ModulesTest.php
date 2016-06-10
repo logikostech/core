@@ -41,32 +41,13 @@ class ModulesTest extends \PHPUnit_Framework_TestCase {
     $app = $this->getModuleBootstrap()->getApp();
     $this->assertRouteWorks($uri,self::NOT_DEFAULT_MODULE);
   }
-  public function testSetDefaultModuleViaConfig() {
-    $config = [
-        'modules' => $this->getModules(),
-        'defaultModule' => 'backend'
-    ];
+  public function testSetDefaultModule() {
     $app = (new Bootstrap(
         static::$di,
         [
             'basedir' => static::$basedir,
-            'config' => $config
-        ]
-    ))->getApp();
-    $this->assertEquals('backend',$app->getDefaultModule());
-    $this->assertRouteWorks('foo/bar',self::IS_DEFAULT_MODULE);
-  }
-  public function testSetDefaultModuleViaUseroptions() {
-    $config = [
-        'modules' => $this->getModules()
-    ];
-    
-    $app = (new Bootstrap(
-        static::$di,
-        [
-            'basedir' => static::$basedir,
-            'defaultModule' => 'backend',
-            'config' => $config
+            'modules' => $this->getModules(),
+            'defaultModule' => 'backend'
         ]
     ))->getApp();
     $this->assertEquals('backend',$app->getDefaultModule());
@@ -138,13 +119,10 @@ class ModulesTest extends \PHPUnit_Framework_TestCase {
       $modules = $this->getModules();
     
     $options = [
-        'config' => [
-            'modules' => $modules
-        ]
+        'modules' => $modules
     ];
     if ($default)
       $options['defaultModule'] = $default;
-//      $options['config']['defaultModule'] = $default;
     
     return $this->getBootstrap($options);
   }

@@ -20,7 +20,7 @@ use Phalcon\Di\Injectable;
 use Logikos\Application\Bootstrap\Modules;
 
 class Bootstrap extends Injectable {
-  use \Logikos\UserOptionTrait;
+  //use \Logikos\UserOptionTrait;
   
   private $_defaultOptions = [
       'basedir'  => null,
@@ -53,23 +53,46 @@ class Bootstrap extends Injectable {
   const ENV_DEVELOPMENT = 'development';
   const ENV_TESTING     = 'testing';
   
-  public function __construct(Di $di=null, array $userOptions = null) {
-    $this->setDi($di);
-    $this->initOptions($di,$userOptions);
+  public function __construct(Di $di=null, array $config = null, array $userOptions = null) {
+    $di = $this->initDi($di);
+    $this->initOptions($di, $config, $userOptions);
     $this->initEventsManager($di);
-    Di::setDefault($di);
   }
-  
+  protected function initDi($di) {
+    if (!$di instanceof Di)
+      $di = new FactoryDefault();
+    $this->setDi($di);
+    Di::setDefault($di);
+    return $di;
+  }
+  public function setUserOption($option, $value) {
+    $this->config[$option] = $value;
+  }
+  public function getUserOption($option, $default=null) {
+    $value = $this->config->get($option);
+    
+    if ($value instanceof Config)
+      $value = $value->toArray();
+    
+    if (is_null($value) && !is_null($default))
+      $value = $default;
+    
+    return $value;
+  }
+  public function setUserOptions(array $options) {
+    $this->config->merge($options instanceof Config?$options:new Config($options));
+  }
+  public function getUserOptions() {
+    return $this->config->toArray();
+  }
   public function run() {
     if (!defined('APP_ENV'))
       define('APP_ENV', getenv('APP_ENV') ?: static::ENV_PRODUCTION);
-    
     $di     = $this->getDi();
     $config = $this->initConfig($di);
     
     if ($config->get('autoload'))
       $this->initLoader($config->get('autoload'));
-    
     $this->app = $this->getUserOption('app',new Application);
     $this->app->setDI($di);
     $this->app->setEventsManager($di->get('eventsManager'));
@@ -88,10 +111,18 @@ class Bootstrap extends Injectable {
   }
   
   
-  protected function initOptions(Di $di,$userOptions) {
-    $this->_setDefaultUserOptions($this->_defaultOptions);
+  protected function initOptions(Di $di, $config, $userOptions) {
+    $this->config = new Config($this->_defaultOptions);
+    
+    if ($config instanceof Config)
+      $this->config->merge($config);
+    
+    elseif (is_array($config) && !empty($config))
+      $this->config->merge(new Config($config));
+    
     if (is_array($userOptions))
-      $this->mergeUserOptions($userOptions);
+      $this->config->merge(new Config($userOptions));
+    
     $this->checkBasedir();
     $this->checkAppdir();
     $this->checkConfdir();
@@ -115,7 +146,7 @@ class Bootstrap extends Injectable {
     $dir = $this->getUserOption($option,$default);
     if ($dir && is_dir($dir)) {
       $dir = realpath($dir);
-      $this->setUserOption($option,$dir);    
+      $this->setUserOption($option,$dir);
       if ($constant && !defined($constant))
         define($constant,$dir.'/');
     }
@@ -192,18 +223,16 @@ class Bootstrap extends Injectable {
    * @return \Phalcon\Config
    */
   protected function initConfig(Di $di) {
-    $config  = $this->getUserOption('config');
     $confdir = $this->getUserOption('confdir');
     
-    if (!$config instanceof Config)
-      $config = new Config(is_array($config)?$config:[]);
+    if (!$this->config instanceof Config)
+      $this->config = new Config();
     
-    $this->mergeConfigFile($config, $confdir.'/config.php');
-    $this->mergeConfigFile($config, $confdir.'/'.getenv('APP_ENV').'.php');
+    $this->mergeConfigFile($this->config, $confdir.'/config.php');
+    $this->mergeConfigFile($this->config, $confdir.'/'.getenv('APP_ENV').'.php');
     
-    $this->config = $config;
-    $di->setShared('config', $config);
-    return $config;
+    $di->setShared('config', $this->config);
+    return $this->config;
   }
   protected function mergeConfigFile(Config &$config,$file) {
     if (is_readable($file)) {
@@ -237,11 +266,14 @@ class Bootstrap extends Injectable {
    * @return \Phalcon\Config
    */
   protected function _moduleConfig() {
-    return $this->config->get('modules',new Config([]));
+    $modconf = $this->getUserOption('modules');
+    if (!$modconf instanceof Config)
+      $modconf = new Config(is_array($modconf)?$modconf:[]);
+    return $modconf;
   }
   protected function _moduleOptions() {
     return [
-        'defaultModule' => $this->config->get('defaultModule',$this->getUserOption('defaultModule')),
+        'defaultModule' => $this->getUserOption('defaultModule',$this->getUserOption('defaultModule')),
     ];
   }
   public function initModules($modconf=null, $options=null) {
