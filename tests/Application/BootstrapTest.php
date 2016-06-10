@@ -6,6 +6,7 @@ use Logikos\Application\Bootstrap;
 use Phalcon\Di\FactoryDefault as Di;
 use Phalcon\Di\Injectable;
 use Phalcon\Mvc\User\Plugin;
+use Phalcon\Config;
 
 class BootstrapTest extends \PHPUnit_Framework_TestCase {
   static $di;
@@ -27,8 +28,8 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     $b = new Bootstrap();
     $this->assertInstanceOf('Logikos\Application\Bootstrap', $b);
   }
-  public function testNewBootstrapMinOptions() {
-    $b = $this->getBootstrap()->run();
+  public function testNewBootstrapWithConfigObject() {
+    $b = new Bootstrap(static::$di,new Config());
     $this->assertInstanceOf('Logikos\Application\Bootstrap', $b);
   }
   public function testConstantsAreSet() {

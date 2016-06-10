@@ -53,7 +53,7 @@ class Bootstrap extends Injectable {
   const ENV_DEVELOPMENT = 'development';
   const ENV_TESTING     = 'testing';
   
-  public function __construct(Di $di=null, array $config = null, array $userOptions = null) {
+  public function __construct(Di $di=null, $config = null, array $userOptions = null) {
     $di = $this->initDi($di);
     $this->initOptions($di, $config, $userOptions);
     $this->initEventsManager($di);
