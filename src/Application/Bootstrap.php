@@ -260,7 +260,7 @@ class Bootstrap extends Injectable {
   protected function _shouldAutoloadModules() {
     $modconfset = !empty($this->_moduleConfig()->toArray());
     $defaultmodset = !empty($this->_moduleOptions()['defaultModule']);
-    return $modconfset || $defaultmodset;
+    return !$this->modules && ($modconfset || $defaultmodset);
   }
   /**
    * @return \Phalcon\Config
@@ -273,7 +273,7 @@ class Bootstrap extends Injectable {
   }
   protected function _moduleOptions() {
     return [
-        'defaultModule' => $this->getUserOption('defaultModule',$this->getUserOption('defaultModule')),
+        'defaultModule' => $this->getUserOption('defaultModule'),
     ];
   }
   public function initModules($modconf=null, $options=null) {
