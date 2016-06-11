@@ -109,7 +109,13 @@ class Bootstrap extends Injectable {
   public function getApp() {
     return $this->app?:$this->run()->app;
   }
-  
+  public function getContent($uri = null) {
+    static $cache = array();
+    $key = $uri?:0;
+    if (!isset($cache[$key]))
+      $cache[$key] = $this->getApp()->handle($uri)->getcontent();
+    return $cache[$key];
+  }
   
   protected function initOptions(Di $di, $config, $userOptions) {
     $this->config = new Config($this->_defaultOptions);
@@ -183,8 +189,8 @@ class Bootstrap extends Injectable {
   public function loadEnv($file=null) {
     if (is_null($file))
       $file = $this->getUserOption('confdir').'/.env';
-    
-    if (file_exists($file)) {
+
+    if (file_exists($file) && class_exists('Dotenv\Dotenv')) {
       $dotenv = new \Dotenv\Dotenv(dirname($file),basename($file));
       $dotenv->load();
     }

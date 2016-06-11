@@ -33,7 +33,8 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     $this->assertInstanceOf('Logikos\Application\Bootstrap', $b);
   }
   public function testConstantsAreSet() {
-    $b = $this->getBootstrap()->run();
+    $b = $this->getBootstrap();
+    $b->run();
     $this->assertTrue(defined('BASE_DIR'),'BASE_DIR not defined');
     $this->assertTrue(defined('APP_DIR'),'APP_DIR not defined');
     $this->assertTrue(defined('CONF_DIR'),'CONF_DIR not defined');
@@ -44,6 +45,7 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     $this->assertInstanceOf('Phalcon\\Config', static::$di->get('config'));
   }
   public function testEnvLoaded() {
+    $this->assertTrue(class_exists('Dotenv\Dotenv'),"test can not pass without Dotenv\Dotenv, please run composer update.");
     $b = $this->getBootstrap();
     $this->assertEquals('development', getenv('APP_ENV'));
     $b->run();
