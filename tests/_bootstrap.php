@@ -8,3 +8,11 @@ $composer_autoloader = TESTS_DIR . "/../vendor/autoload.php";
 
 if (file_exists($composer_autoloader))
   include_once $composer_autoloader;
+
+$autoload = [
+    'Logikos' => realpath(__DIR__.'/../src').'/'
+];
+
+$loader = new \Phalcon\Loader;
+$loader->registerNamespaces($autoload);
+$loader->register();
