@@ -9,7 +9,6 @@ use Phalcon\Mvc\Application;
 use Phalcon\Di\Injectable;
 
 class Modules extends Injectable {
-  use \Logikos\UserOptionTrait;
   
   /**
    * @var Application
@@ -21,12 +20,12 @@ class Modules extends Injectable {
    */
   public $config;
 
-  private $_defaultOptions = [
+  private $_options = [
       'defaultModule' => 'frontend'
   ];
   
   public function __construct(Di $di, Application $app, $config=[], array $userOptions = null) {
-  
+
     $this->setDi($di);
     if (!$config instanceof Config)
       $config = new Config(is_array($config)?$config:[]);
@@ -34,7 +33,6 @@ class Modules extends Injectable {
     $this->app    = $app;
     $this->config = $config;
     $this->initOptions($di,$userOptions);
-
     $default  = $this->getDefaultModule();
     $detected = $this->_detectModuleConf();
     $modconf  = $this->_mergeModConf($detected,$config);
@@ -72,10 +70,15 @@ class Modules extends Injectable {
     
     return rtrim($dir,'/').'/';
   }
+  public function getUserOption($option, $default=null) {
+    return isset($this->_options[$option]) ? $this->_options[$option] : $default;
+  }
+  public function getUserOptions() {
+    return $this->_options;
+  }
   protected function initOptions(Di $di,$userOptions) {
-    $this->_setDefaultUserOptions($this->_defaultOptions);
     if (is_array($userOptions))
-      $this->mergeUserOptions($userOptions);
+      $this->_options = array_merge($this->_options,$userOptions);
   }
   private function _detectModuleConf() {
     $mods     = $this->_getPotentialModuleFiles();

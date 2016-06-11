@@ -24,16 +24,25 @@ class ModulesTest extends \PHPUnit_Framework_TestCase {
   public function setUp() {
     static::$di = new Di();
     Di::setDefault(static::$di);
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
   }
-  
   public function testBootstrap() {
     $b = $this->getModuleBootstrap();
     $this->assertInstanceOf('Logikos\Application\Bootstrap', $b);
   }
-
+  public function testModulesConstructor() {
+    $m = new Modules(
+        self::$di,
+        new \Phalcon\Mvc\Application
+    );
+    $this->assertInstanceOf('Logikos\Application\Bootstrap\Modules', $m);
+  }
   public function testDefaultModuleRouting() {
-    $uri = 'foo/bar/arg1';
-    $app = $this->getModuleBootstrap()->getApp();
+    $uri  = 'foo/bar/arg1';
+    $boot = $this->getModuleBootstrap();
+    $boot->getApp();
     $this->assertRouteWorks($uri,self::IS_DEFAULT_MODULE);
   }
   public function testOtherModuleRouting() {
