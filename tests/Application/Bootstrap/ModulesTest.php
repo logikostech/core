@@ -28,6 +28,7 @@ class ModulesTest extends \PHPUnit_Framework_TestCase {
     ini_set('display_startup_errors', 1);
     error_reporting(E_ALL);
   }
+  /* */
   public function testBootstrap() {
     $b = $this->getModuleBootstrap();
     $this->assertInstanceOf('Logikos\Application\Bootstrap', $b);
@@ -80,7 +81,37 @@ class ModulesTest extends \PHPUnit_Framework_TestCase {
     $this->assertEquals('backend',$b->getApp()->getDefaultModule());
     $this->assertRouteWorks('foo/bar',self::IS_DEFAULT_MODULE);
   }
-  
+
+  public function testModuleWithCustomRoutes() {
+    $b = $this->getBootstrap();
+    $b->initModules();
+    
+    $this->assertRouteMap(
+        '/customroute/foo/a/b/c',
+        'customroute',
+        'index',
+        'foo',
+        ['a','b','c']
+    );
+  }
+  protected function assertRouteMap($uri,$module,$controller,$action,$args=null) {
+    $uri    = '/'.trim($uri,'/');
+    $router = $this->di()->router;
+    $router->handle($uri);
+
+    $this->assertEquals($module,     $router->getModuleName(),'route did not map to correct module');
+    $this->assertEquals($controller, $router->getControllerName(),'route did not map to correct controller');
+    $this->assertEquals($action,     $router->getActionName(),'route did not map to correct action');
+    
+    if (is_array($args)) {
+      $params = $router->getParams();
+      foreach($args as $k=>$v) {
+        $param = isset($params[$k])?$params[$k]:null;
+        $n = $k.date('S',mktime(1,1,1,1,( (($n>=10)+($n>=20)+($n==0))*10 + $n%10) ));
+        $this->assertEquals($v,$param,"route failed to match the {$n} arg.");
+      }
+    }
+  }
   protected function assertRouteWorks($uri,$usesDefaultModule=false) {
     $uri    = '/'.trim($uri,'/');
     $uriarg = explode('/',trim($uri,'/'));

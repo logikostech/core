@@ -31,12 +31,13 @@ class Modules extends Injectable {
       $config = new Config(is_array($config)?$config:[]);
   
     $this->app    = $app;
-    $this->config = $config;
     $this->initOptions($di,$userOptions);
     $default  = $this->getDefaultModule();
     $detected = $this->_detectModuleConf();
     $modconf  = $this->_mergeModConf($detected,$config);
     $modarray = $modconf->toArray();
+    
+    $this->config = $modconf;
     
     if (count($modarray)) {
       $app->registerModules($modarray);
@@ -44,7 +45,7 @@ class Modules extends Injectable {
         $app->setDefaultModule($default);
         $this->router->setDefaultModule($default);
       }
-      $this->autoRouteModules($app);
+      $this->initModuleRouting($app);
     }
   }
   /**
@@ -58,6 +59,9 @@ class Modules extends Injectable {
   }
   public function getDefaultModule() {
     return $this->app->getDefaultModule() ?: $this->getUserOption('defaultModule');
+  }
+  public function isDefaultModule($moduleName) {
+    return $moduleName == $this->getDefaultModule();
   }
   public function getModulesDir() {
     $dir =$this->getUserOption('modulesDir');
@@ -140,39 +144,53 @@ class Modules extends Injectable {
     return $conf->merge($merge);
   }
   
-  
-
-
-  protected function autoRouteModules(Application $app) {
-    $default = $app->getDefaultModule();
-    $mods = $app->getModules();
-    if (count($mods)) {
-      // note, it is important that the default module is registered first..
-      // though if user uses Phalcon\Mvc\Router these default routes are not needed
-      if (isset($mods[$default]))
-        $this->routeModule($default, true);
-      
-      foreach ($mods as $key => $module)
-        if ($key != $default)
-          $this->routeModule($key, false);
-    }
+  public function getModules() {
+    return $this->getApp()->getModules() ?: [];
   }
-  protected function routeModule($key,$default=false) {
-    $mod = $default ? '' : "/{$key}";
-    $this->router->add("{$mod}/:params", array(
-        'module' => $key,
+  public function isModuleDefined($moduleName) {
+    $modules = $this->getApp()->getModules();
+    return isset($modules[$moduleName]);
+  }
+
+  protected function initModuleRouting(Application $app) {
+    // note, it is important that the default module is registered first..
+    // though if user uses Phalcon\Mvc\Router these default routes are not needed
+    if ($this->isModuleDefined($app->getDefaultModule()))
+      $this->routeModule($app->getDefaultModule());
+    
+    foreach ($this->getModules() as $moduleName => $module)
+      if (!$this->isDefaultModule($moduleName))
+        $this->routeModule($moduleName);
+  }
+  protected function routeModule($moduleName) {
+    if (isset($this->config[$moduleName]->className)) {
+      $className = $this->config[$moduleName]->className;
+      if (method_exists($className,'defineRoutes')) {
+        $className::defineRoutes($this->getDI());
+        return;
+      }
+    }
+    $this->autoRouteModule($moduleName);
+  }
+  protected function autoRouteModule($moduleName) {
+    $uriprefix = $this->isDefaultModule($moduleName)
+      ? ''
+      : "/{$moduleName}";
+    
+    $this->router->add("{$uriprefix}/:params", array(
+        'module' => $moduleName,
         'controller' => 'index',
         'action' => 'index',
         'params' => 1
-    ))->setName($key);
-    $this->router->add("{$mod}/:controller/:params", array(
-        'module' => $key,
+    ))->setName($moduleName);
+    $this->router->add("{$uriprefix}/:controller/:params", array(
+        'module' => $moduleName,
         'controller' => 1,
         'action' => 'index',
         'params' => 2
     ));
-    $this->router->add("{$mod}/:controller/:action/:params", array(
-        'module' => $key,
+    $this->router->add("{$uriprefix}/:controller/:action/:params", array(
+        'module' => $moduleName,
         'controller' => 1,
         'action' => 2,
         'params' => 3
