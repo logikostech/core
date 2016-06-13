@@ -64,7 +64,7 @@ class Modules extends Injectable {
     return $moduleName == $this->getDefaultModule();
   }
   public function getModulesDir() {
-    $dir =$this->getUserOption('modulesDir');
+    $dir = $this->getUserOption('modulesDir');
     
     if (!$dir && defined('APP_DIR') && is_dir(APP_DIR.'modules'))
       $dir = APP_DIR.'modules';
