@@ -18,6 +18,7 @@ use Phalcon\Logger\Adapter\File as FileLogger;
 use Phalcon\Mvc\Model\Manager as ModelsManager;
 use Phalcon\Di\Injectable;
 use Logikos\Application\Bootstrap\Modules;
+use Phalcon\Mvc\ViewInterface;
 
 class Bootstrap extends Injectable {
   //use \Logikos\UserOptionTrait;
@@ -96,6 +97,12 @@ class Bootstrap extends Injectable {
     $this->app = $this->getUserOption('app',new Application);
     $this->app->setDI($di);
     $this->app->setEventsManager($di->get('eventsManager'));
+    
+    // disable implicit views if using simple views
+    if ($view = $di->get('view'))
+      if (!$view instanceof ViewInterface)
+        $this->app->useImplicitView(false);
+    
     if ($this->_shouldAutoloadModules())
       $this->initModules($this->_moduleConfig(), $this->_moduleOptions());
     
