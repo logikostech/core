@@ -140,7 +140,6 @@ class Bootstrap extends Injectable {
     $this->checkAppdir();
     $this->checkConfdir();
     $this->loadEnv();
-    $this->checkUserApp();
   }
 
   protected function checkBasedir() {
@@ -226,10 +225,6 @@ class Bootstrap extends Injectable {
     }
   }
   
-  protected function checkUserApp() {
-    if (is_object($this->getUserOption('app')))
-      $this->app = $this->getUserOption('app');
-  }
   
   /**
    * @param string $confdir
