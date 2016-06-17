@@ -99,10 +99,9 @@ class Bootstrap extends Injectable {
     $this->app->setEventsManager($di->get('eventsManager'));
     
     // disable implicit views if using simple views
-    if ($view = $di->get('view'))
-      if (!$view instanceof ViewInterface)
-        $this->app->useImplicitView(false);
-    
+    if ($di->has('view') && !$di->get('view') instanceof ViewInterface) {
+      $this->app->useImplicitView(false);
+    }
     if ($this->_shouldAutoloadModules())
       $this->initModules($this->_moduleConfig(), $this->_moduleOptions());
     
@@ -137,8 +136,9 @@ class Bootstrap extends Injectable {
       $this->config->merge(new Config($userOptions));
     
     $this->checkBasedir();
-    $this->checkAppdir();
-    $this->checkConfdir();
+    $this->_checkDir('appdir',$this->findAppDir(),'APP_DIR');
+    $this->_checkDir('confdir',$this->findConfDir(),'CONF_DIR');
+    $this->_checkDir('pubdir',$this->findPubDir(),'PUB_DIR');
     $this->loadEnv();
   }
 
@@ -148,19 +148,15 @@ class Bootstrap extends Injectable {
    
     $this->_checkDir('basedir',$default,'BASE_DIR');
   }
-  protected function checkAppdir() {
-    $this->_checkDir('appdir',$this->findAppdir(),'APP_DIR');
-  }
-  protected function checkConfdir() {
-    $this->_checkDir('confdir',$this->findConfdir(),'CONF_DIR');
-  }
   private function _checkDir($option,$default,$constant=null) {
     $dir = $this->getUserOption($option,$default);
     if ($dir && is_dir($dir)) {
       $dir = realpath($dir);
       $this->setUserOption($option,$dir);
-      if ($constant && !defined($constant))
+      if ($constant && !defined($constant)) {
         define($constant,$dir.'/');
+        putenv("{$constant}={$dir}/");
+      }
     }
   }
   
@@ -170,11 +166,14 @@ class Bootstrap extends Injectable {
         $this->getUserOption('basedir') . '/apps'
     ]);
   }
-  protected function findConfdir() {
+  protected function findConfDir() {
     return $this->_findDir([
         $this->getUserOption('basedir') . '/config',
         $this->getUserOption('appdir')  . '/config'
     ]);
+  }
+  protected function findPubDir() {
+    return $this->getUserOption('basedir') . '/public';
   }
   private function _findDir($check) {
     foreach($check as $dir)
