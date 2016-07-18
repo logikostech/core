@@ -112,6 +112,15 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     $this->assertTrue(isset($b->afterRunEventFired), "afterRun event didn't fire");
   }
 
+  public function testMaintainConfigObjectReference() {
+    $config = new Config([
+        'basedir' => static::$basedir
+    ]);
+    $b = new Bootstrap(static::$di,$config);
+    $b->config->foo='bar';
+    $this->assertEquals('bar',$config->get('foo'));
+  }
+  
   /**
    * @return \Phalcon\Mvc\User\Plugin
    */
