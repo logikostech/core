@@ -99,8 +99,18 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
     $this->assertInstanceOf('Phalcon\Mvc\Application', $b->getApp());
   }
   
-  
-
+  public function testCanAttachEvents() {
+    $b  = $this->getBootstrap();
+    $b->attachEventListener('beforeRun', function($event, $ltboot){
+      $ltboot->beforeRunEventFired=true;
+    });
+    $b->attachEventListener('afterRun', function($event, $ltboot){
+      $ltboot->afterRunEventFired=true;
+    });
+    $b->run();
+    $this->assertTrue(isset($b->beforeRunEventFired), "beforeRun event didn't fire");
+    $this->assertTrue(isset($b->afterRunEventFired), "afterRun event didn't fire");
+  }
 
   /**
    * @return \Phalcon\Mvc\User\Plugin

@@ -49,6 +49,7 @@ class Bootstrap extends Injectable {
    */
   public $modules;
   
+  const EVENT_PREFIX    = 'ltboot';
   const ENV_PRODUCTION  = 'production';
   const ENV_STAGING     = 'staging';
   const ENV_DEVELOPMENT = 'development';
@@ -87,6 +88,7 @@ class Bootstrap extends Injectable {
     return $this->config->toArray();
   }
   public function run() {
+    $this->fireEvent('beforeRun');
     if (!defined('APP_ENV'))
       define('APP_ENV', getenv('APP_ENV') ?: static::ENV_PRODUCTION);
     $di     = $this->getDi();
@@ -106,6 +108,7 @@ class Bootstrap extends Injectable {
       $this->initModules($this->_moduleConfig(), $this->_moduleOptions());
     
     $di->setShared('app', $this->app);
+    $this->fireEvent('afterRun');
     return $this;
   }
 
@@ -189,6 +192,7 @@ class Bootstrap extends Injectable {
     
     $em->enablePriorities(true);
     $di->setShared('eventsManager', $em);
+    $this->setEventsManager($em);
   }
   
   public function loadEnv($file=null) {
@@ -292,4 +296,28 @@ class Bootstrap extends Injectable {
     );
   }
   
+  /**
+   * Attach an event listener, if no event manager has been setup it will set one up for you.
+   * @param string $name leave blank (null, false, '') to place a listener for all events or specify the event you want
+   * @param object|callable $handler
+   */
+  public function attachEventListener($name, $handler) {
+    $em    = $this->getEventsManager();
+    if (!$name) {
+      $event = self::EVENT_PREFIX;
+    }
+    elseif (!strstr($name,':') && $name != self::EVENT_PREFIX) {
+      $event = self::EVENT_PREFIX.':'.$name;
+    }
+    else {
+      $event = $name;
+    }
+    
+    $em->attach($event, $handler);
+  }
+  protected function fireEvent($name, $data=null, $cancelable=true) {
+    $em    = $this->getEventsManager();
+    $event = self::EVENT_PREFIX.':'.$name;
+    return $em->fire($event, $this, $data, $cancelable);
+  }
 }
