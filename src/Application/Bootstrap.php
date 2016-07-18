@@ -127,22 +127,43 @@ class Bootstrap extends Injectable {
   }
   
   protected function initOptions(Di $di, $config, $userOptions) {
-    $this->config = new Config($this->_defaultOptions);
+    if ($config instanceof Config) {
+      $this->config = $config;
+      $c = new Config($this->_defaultOptions);
+      foreach($c as $option=>$value) {
+        if (!isset($config->$option)) {
+          $this->config->option = $value;
+        }
+      }
+    }
+    else {
+      $this->config = new Config($this->_defaultOptions);
+      if (is_array($config) && count($config)) {
+        $this->config->merge(new Config($config));
+      }
+    }
     
-    if ($config instanceof Config)
-      $this->config->merge($config);
-    
-    elseif (is_array($config) && !empty($config))
-      $this->config->merge(new Config($config));
-    
-    if (is_array($userOptions))
+    if (is_array($userOptions)) {
       $this->config->merge(new Config($userOptions));
-    
+    }
     $this->checkBasedir();
     $this->_checkDir('appdir',$this->findAppDir(),'APP_DIR');
     $this->_checkDir('confdir',$this->findConfDir(),'CONF_DIR');
     $this->_checkDir('pubdir',$this->findPubDir(),'PUB_DIR');
     $this->loadEnv();
+  }
+
+  /**
+   * Used to set defaults, will not overwrite existing values
+   * 
+   * @param array $options
+   */
+  protected function _setDefaultUserOptions(array $options) {
+    foreach ($options as $option=>$value) {
+      if (!$this->getUserOption($option))
+        $this->setUserOption($option,$value);
+    }
+    return $this;
   }
 
   protected function checkBasedir() {
