@@ -10,23 +10,29 @@ Core for LT projects.
   $appdir  = $basedir.'/app';
   
   /**
-   * Read the default module configuration
-   */
-  $config   = include $appdir . "/config/config.php";
-  
-  /**
    * Composer
    */
   $composer = $basedir . '/vendor/autoload.php';
   if (file_exists($composer))
     include_once $composer;
 
+
+  $boot = new Bootstrap([
+      'basedir' => $basedir,
+      'appdir'  => $appdir,
+      'confdir' => $appdir.'/config'
+  ]);
+
+  /**
+   * get loaded config from Bootstrap, which will auto merge $confdir."/".getenv('APP_ENV').".php"
+   */
+  $config = Bootstrap::getConfig();
+
   /**
    * Include services
    */
   $di = require APP_PATH . '/config/services.php';
 
-  $boot = new Bootstrap($di,$config);
   echo $boot->getContent();
 ```
 ## Logikos\Application\Bootstrap\Modules
@@ -35,7 +41,7 @@ If you pass module configuration information to Bootstrap(), either the module d
 Of course you can always initModules manualy yourself:
 ```php
   $appdir = realpath(__DIR__.'/../app');
-  $boot = new Bootstrap($di,$config);
+  $boot = new Bootstrap($options);
   $boot->initModules(
     [
       'frontend' => [
