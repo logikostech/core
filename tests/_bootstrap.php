@@ -4,7 +4,11 @@ use Phalcon\Di\FactoryDefault as Di;
 
 define('TESTS_DIR', dirname(__FILE__));
 
-$composer_autoloader = TESTS_DIR . "/../vendor/autoload.php";
+
+$projectBaseDir = realpath(substr(__DIR__.'/',0,strrpos(__DIR__.'/','/vendor/')));
+
+$composer_autoloader = $projectBaseDir.'/vendor/autoload.php';
+    
 
 if (file_exists($composer_autoloader))
   include_once $composer_autoloader;
