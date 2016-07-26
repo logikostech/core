@@ -61,6 +61,7 @@ class Bootstrap extends Injectable {
   const ENV_STAGING     = 'staging';
   const ENV_DEVELOPMENT = 'development';
   const ENV_TESTING     = 'testing';
+  const ENV_DEBUG       = 'debug';
   
   public static $testing = false;
   
