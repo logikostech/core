@@ -2,23 +2,25 @@
 
 namespace Logikos\Application;
 
-
-use Phalcon\Di;
-use Phalcon\Config;
-use Phalcon\Loader;
-use Phalcon\Mvc\Router;
-use Phalcon\Events\Event;
-use Phalcon\Mvc\Dispatcher;
-use Phalcon\Mvc\Application;
-use Phalcon\Di\FactoryDefault;
-use Phalcon\Mvc\Url as UrlResolver;
-use Phalcon\Error\Handler as ErrorHandler;
-use Phalcon\Events\Manager as EventsManager;
-use Phalcon\Logger\Adapter\File as FileLogger;
-use Phalcon\Mvc\Model\Manager as ModelsManager;
-use Phalcon\Di\Injectable;
 use Logikos\Application\Bootstrap\Modules;
+use Logikos\Application\Bootstrap\Paths;
+use Phalcon\Config;
+use Phalcon\Di;
+use Phalcon\Di\Injectable;
+use Phalcon\Di\FactoryDefault;
+use Phalcon\DiInterface;
+use Phalcon\Error\Handler as ErrorHandler;
+use Phalcon\Events\Event;
+use Phalcon\Events\Manager as EventsManager;
+use Phalcon\Loader;
+use Phalcon\Logger\Adapter\File as FileLogger;
+use Phalcon\Mvc\Application;
+use Phalcon\Mvc\Dispatcher;
+use Phalcon\Mvc\Model\Manager as ModelsManager;
+use Phalcon\Mvc\Router;
+use Phalcon\Mvc\Url as UrlResolver;
 use Phalcon\Mvc\ViewInterface;
+use Phalcon\Registry;
 
 class Bootstrap extends Injectable {
   //use \Logikos\UserOptionTrait;
@@ -42,12 +44,17 @@ class Bootstrap extends Injectable {
   /**
    * @var Config
    */
-  public $config;
+  public static $config;
   
   /**
    * @var Modules
    */
   public $modules;
+  
+  /**
+   * @var Registry
+   */
+  public $userOptions;
   
   const EVENT_PREFIX    = 'ltboot';
   const ENV_PRODUCTION  = 'production';
@@ -55,179 +62,77 @@ class Bootstrap extends Injectable {
   const ENV_DEVELOPMENT = 'development';
   const ENV_TESTING     = 'testing';
   
-  public function __construct(Di $di=null, $config = null, array $userOptions = null) {
-    $di = $this->initDi($di);
-    $this->initOptions($di, $config, $userOptions);
+  public static $testing = false;
+  
+  public function __construct(array $userOptions = null, $config = null, DiInterface $di = null) {
+    $this->initOptions($userOptions);
+    $this->initPaths();
+    $this->loadEnv();
+    $this->initConfig($config);
+    if (!is_null($di)) {
+      $this->setDI($di);
+    }
+  }
+
+  public function setDI(DiInterface $di) {
+    $di->setShared('config', static::$config);
     $this->initEventsManager($di);
-  }
-  protected function initDi($di) {
-    if (!$di instanceof Di)
-      $di = new FactoryDefault();
-    $this->setDi($di);
+    parent::setDI($di);
     Di::setDefault($di);
-    return $di;
   }
-  public function setUserOption($option, $value) {
-    $this->config[$option] = $value;
+  /**
+   * @return \Phalcon\Registry
+   */
+  public function getUserOptions() {
+    return $this->userOptions;
   }
-  public function getUserOption($option, $default=null) {
-    $value = $this->config->get($option);
-    
-    if ($value instanceof Config)
-      $value = $value->toArray();
-    
-    if (is_null($value) && !is_null($default))
-      $value = $default;
-    
-    return $value;
+  public function getUserOption($item, $default=null) {
+    $useroption = isset($this->userOptions[$item])
+        ? $this->userOptions[$item]
+        : null;
+    if (!$useroption) {
+      $useroption = static::$config->get($item);
+    }
+    return $useroption ?: $default;
   }
   public function setUserOptions(array $options) {
-    $this->config->merge($options instanceof Config?$options:new Config($options));
-  }
-  public function getUserOptions() {
-    return $this->config->toArray();
-  }
-  public function run() {
-    $this->fireEvent('beforeRun');
-    if (!defined('APP_ENV'))
-      define('APP_ENV', getenv('APP_ENV') ?: static::ENV_PRODUCTION);
-    $di     = $this->getDi();
-    $config = $this->initConfig($di);
-    
-    if ($config->get('autoload'))
-      $this->initLoader($config->get('autoload'));
-    $this->app = $this->getUserOption('app',new Application);
-    $this->app->setDI($di);
-    $this->app->setEventsManager($di->get('eventsManager'));
-    
-    // disable implicit views if using simple views
-    if ($di->has('view') && !$di->get('view') instanceof ViewInterface) {
-      $this->app->useImplicitView(false);
+    foreach($options as $item=>$value) {
+      $this->setUserOption($item, $value);
     }
-    if ($this->_shouldAutoloadModules())
-      $this->initModules($this->_moduleConfig(), $this->_moduleOptions());
-    
-    $di->setShared('app', $this->app);
-    $this->fireEvent('afterRun');
     return $this;
   }
-
-  /**
-   * @return \Phalcon\Mvc\Application
-   */
-  public function getApp() {
-    return $this->app?:$this->run()->app;
+  public function setUserOption($item, $value) {
+    $this->userOptions[$item] = $value;
+    return $this;
   }
-  public function getContent($uri = null) {
-    static $cache = array();
-    $key = $uri?:0;
-    if (!isset($cache[$key]))
-      $cache[$key] = $this->getApp()->handle($uri)->getcontent();
-    return $cache[$key];
+  public static function getConfig() {
+    return static::$config;
   }
   
-  protected function initOptions(Di $di, $config, $userOptions) {
-    if ($config instanceof Config) {
-      $this->config = $config;
-      $c = new Config($this->_defaultOptions);
-      foreach($c as $option=>$value) {
-        if (!isset($config->$option)) {
-          $this->config->option = $value;
-        }
-      }
-    }
-    else {
-      $this->config = new Config($this->_defaultOptions);
-      if (is_array($config) && count($config)) {
-        $this->config->merge(new Config($config));
-      }
-    }
-    
+  
+  protected function initOptions(array $userOptions=null) {
+    $this->userOptions = new Registry();
+    $this->setUserOptions($this->_defaultOptions);
     if (is_array($userOptions)) {
-      $this->config->merge(new Config($userOptions));
+      $this->setUserOptions($userOptions);
     }
-    $this->checkBasedir();
-    $this->_checkDir('appdir',$this->findAppDir(),'APP_DIR');
-    $this->_checkDir('confdir',$this->findConfDir(),'CONF_DIR');
-    $this->_checkDir('pubdir',$this->findPubDir(),'PUB_DIR');
-    $this->loadEnv();
+  }
+  
+  protected function initPaths() {
+    $paths = new Paths($this->getUserOptions());
   }
 
-  /**
-   * Used to set defaults, will not overwrite existing values
-   * 
-   * @param array $options
-   */
-  protected function _setDefaultUserOptions(array $options) {
-    foreach ($options as $option=>$value) {
-      if (!$this->getUserOption($option))
-        $this->setUserOption($option,$value);
-    }
-    return $this;
-  }
-
-  protected function checkBasedir() {
-    $dir = $this->getUserOption('basedir');
-    $default = substr(__FILE__,0,strrpos($dir,'/vendor/'));
-   
-    $this->_checkDir('basedir',$default,'BASE_DIR');
-  }
-  private function _checkDir($option,$default,$constant=null) {
-    $dir = $this->getUserOption($option,$default);
-    if ($dir && is_dir($dir)) {
-      $dir = realpath($dir);
-      $this->setUserOption($option,$dir);
-      if ($constant && !defined($constant)) {
-        define($constant,$dir.'/');
-        putenv("{$constant}={$dir}/");
-      }
-    }
-  }
-  
-  protected function findAppDir() {
-    return $this->_findDir([
-        $this->getUserOption('basedir') . '/app',
-        $this->getUserOption('basedir') . '/apps'
-    ]);
-  }
-  protected function findConfDir() {
-    return $this->_findDir([
-        $this->getUserOption('basedir') . '/config',
-        $this->getUserOption('appdir')  . '/config'
-    ]);
-  }
-  protected function findPubDir() {
-    return $this->getUserOption('basedir') . '/public';
-  }
-  private function _findDir($check) {
-    foreach($check as $dir)
-      if (is_dir($dir))
-        return realpath($dir);
-  }
-  
-  protected function initEventsManager(Di $di) {
-    $em = $this->getUserOption('eventsManager');
-    
-    if (!$em instanceof EventsManager)
-      $em = new EventsManager();
-    
-    $em->enablePriorities(true);
-    $di->setShared('eventsManager', $em);
-    $this->setEventsManager($em);
-  }
-  
   public function loadEnv($file=null) {
-    if (is_null($file))
+    if (is_null($file)) {
       $file = $this->getUserOption('confdir').'/.env';
-
+    }
     if (file_exists($file) && class_exists('Dotenv\Dotenv')) {
       $dotenv = new \Dotenv\Dotenv(dirname($file),basename($file));
       $dotenv->load();
     }
-    
-    if (!getenv('APP_ENV'))
+    if (!getenv('APP_ENV')) {
       putenv("APP_ENV=".static::ENV_PRODUCTION);
-    
+    }
     switch (getenv('APP_ENV')) {
       case static::ENV_TESTING :
       case static::ENV_DEVELOPMENT : {
@@ -249,24 +154,33 @@ class Bootstrap extends Injectable {
     }
   }
   
-  
   /**
-   * @param string $confdir
-   * @return \Phalcon\Config
+   * @param array|Config $confdir
    */
-  protected function initConfig(Di $di) {
+  protected function initConfig($config) {
     $confdir = $this->getUserOption('confdir');
     
-    if (!$this->config instanceof Config)
-      $this->config = new Config();
+    if ($config instanceof Config) {
+      static::$config = $config;
+    }
+    else {
+      static::$config = new Config(is_array($config)?$config:[]);
+    }
     
-    $this->mergeConfigFile($this->config, $confdir.'/config.php');
-    $this->mergeConfigFile($this->config, $confdir.'/'.getenv('APP_ENV').'.php');
-    
-    $di->setShared('config', $this->config);
-    return $this->config;
+    $this->mergeConfigFile(static::$config, $confdir.'/config.php');
+    $this->mergeConfigFile(static::$config, $confdir.'/'.getenv('APP_ENV').'.php');
+
+    return $this;
   }
-  protected function mergeConfigFile(Config &$config,$file) {
+  public function appendConfig($config) {
+    if (is_array($config)) {
+      $config = new Config($config);
+    }
+    if ($config instanceof Config) {
+      static::$config->merge($config);
+    }
+  }
+  protected function mergeConfigFile(Config &$config, $file) {
     if (is_readable($file)) {
       $mergeconf = include $file;
       
@@ -277,18 +191,109 @@ class Bootstrap extends Injectable {
         $config->merge($mergeconf);
     }
   }
+  
 
-  protected function initLoader(Config $autoload) {
-    $loader = new Loader();
+  
+  
+  public function run(Di $di=null) {
+    $di     = $this->initDi($di);
+    $config = static::$config;
     
-    if ($autoload->get('dir') instanceof Config)
-      $loader->registerDirs($autoload->get('dir')->toArray());
+    $this->fireEvent('beforeRun');
     
-    if ($autoload->get('namespace') instanceof Config)
-      $loader->registerNamespaces($autoload->get('namespace')->toArray());
-    
-    $loader->register();
+    $this->initLoader();
+    $this->initApplication();
+    if ($this->_shouldAutoloadModules()) {
+      $this->initModules($this->_moduleConfig(), $this->_moduleOptions());
+    }
+    $this->fireEvent('afterRun');
+    return $this;
   }
+  
+  protected function initDi(Di $di=null) {
+    if ($di) {
+      $this->setDI($di);
+    }
+    if (!$this->getDI()) {
+      $this->setDI(new FactoryDefault());
+    }
+    return $this->getDI();
+  }
+  protected function initLoader() {
+    $autoload = static::$config->get('autoload');
+    if ($autoload) {
+      $loader = new Loader();
+      
+      if ($autoload->get('dir') instanceof Config)
+        $loader->registerDirs($autoload->get('dir')->toArray());
+      
+      if ($autoload->get('namespace') instanceof Config)
+        $loader->registerNamespaces($autoload->get('namespace')->toArray());
+      
+      $loader->register();
+    }
+  }
+  protected function initApplication() {
+    $di = $this->getDI();
+    if (!$this->getUserOption('app') instanceof Application) {
+      $this->setUserOption('app', new Application);
+    }
+    $this->app = $this->getUserOption('app');
+    $this->app->setDI($di);
+    $this->app->setEventsManager($di->get('eventsManager'));
+    
+    // disable implicit views if using simple views
+    if ($di->has('view') && !$di->get('view') instanceof ViewInterface) {
+      $this->app->useImplicitView(false);
+    }
+    $di->setShared('app', $this->app);
+  
+    if (!defined('APP_ENV')) {
+      define('APP_ENV', getenv('APP_ENV') ?: static::ENV_PRODUCTION);
+    }
+  }
+  
+  /**
+   * @return \Phalcon\Mvc\Application
+   */
+  public function getApp() {
+    return $this->app?:$this->run()->app;
+  }
+  public function getContent($uri = null) {
+    static $cache = array();
+    $key = $uri?:0;
+    if (!isset($cache[$key]))
+      $cache[$key] = $this->getApp()->handle($uri)->getcontent();
+    return $cache[$key];
+  }
+  
+
+  protected function initEventsManager(Di $di) {
+    if (!$di->has('eventsManager') || $di->getService('eventsManager')->getDefinition()=='Phalcon\Events\Manager') {
+      $di->setShared('eventsManager', $this->getEventsManager());
+    }
+    $this->setEventsManager($di->get('eventsManager'));
+  }
+
+  /**
+   * Returns the internal event manager
+   *
+   * @return \Phalcon\Events\ManagerInterface 
+   */
+  public function getEventsManager() {
+    if (!is_object(parent::getEventsManager())) {
+      $em = $this->getUserOption('eventsManager');
+      if (!is_object($em)) {
+        $em = new EventsManager();
+      }
+      $em->enablePriorities(true);
+      $this->setEventsManager($em);
+    }
+    return parent::getEventsManager();
+  }
+  
+  
+
   protected function _shouldAutoloadModules() {
     $modconfset = !empty($this->_moduleConfig()->toArray());
     $defaultmodset = !empty($this->_moduleOptions()['defaultModule']);
@@ -337,8 +342,8 @@ class Bootstrap extends Injectable {
     $em->attach($event, $handler);
   }
   protected function fireEvent($name, $data=null, $cancelable=true) {
-    $em    = $this->getEventsManager();
+    $em = $this->getEventsManager();
     $event = self::EVENT_PREFIX.':'.$name;
-    return $em->fire($event, $this, $data, $cancelable);
+    return $this->getEventsManager()->fire($event, $this, $data, $cancelable);
   }
 }
