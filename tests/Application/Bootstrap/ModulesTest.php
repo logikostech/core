@@ -9,17 +9,25 @@ use Phalcon\Mvc\User\Plugin;
 use Phalcon\Di\FactoryDefault as Di;
 
 class ModulesTest extends \PHPUnit_Framework_TestCase {
-  static $di;
-  static $basedir;
-  static $appdir;
+  /**
+   * @var \Phalcon\Di
+   */
+  public static $di;
+  public static $basedir;
+  public static $confdir;
+  public static $appdir;
+  public static $userOptions;
   
   const IS_DEFAULT_MODULE = 1;
   const NOT_DEFAULT_MODULE = 0;
   
+  
   public static function setUpBeforeClass() {
     static::$basedir = realpath(substr(__DIR__.'/',0,strrpos(__DIR__.'/','/tests/')+7));
     require_once static::$basedir.'/_bootstrap.php';
-    static::$appdir = self::$basedir.'/app';
+    static::$appdir  = static::$basedir.'/app';
+    static::$confdir = static::$appdir.'/config';
+    $b = new Bootstrap(self::getUserOptions());
   }
   public function setUp() {
     static::$di = new Di();
@@ -52,14 +60,11 @@ class ModulesTest extends \PHPUnit_Framework_TestCase {
     $this->assertRouteWorks($uri,self::NOT_DEFAULT_MODULE);
   }
   public function testSetDefaultModule() {
-    $app = (new Bootstrap(
-        static::$di,
-        [
-            'basedir' => static::$basedir,
-            'modules' => $this->getModules(),
-            'defaultModule' => 'backend'
-        ]
-    ))->getApp();
+    $app = $this->getBootstrap([
+        'basedir' => static::$basedir,
+        'modules' => $this->getModules(),
+        'defaultModule' => 'backend'
+    ])->getApp();
     $this->assertEquals('backend',$app->getDefaultModule());
     $this->assertRouteWorks('foo/bar',self::IS_DEFAULT_MODULE);
   }
@@ -107,8 +112,7 @@ class ModulesTest extends \PHPUnit_Framework_TestCase {
       $params = $router->getParams();
       foreach($args as $k=>$v) {
         $param = isset($params[$k])?$params[$k]:null;
-        $n = $k.date('S',mktime(1,1,1,1,( (($n>=10)+($n>=20)+($n==0))*10 + $n%10) ));
-        $this->assertEquals($v,$param,"route failed to match the {$n} arg.");
+        $this->assertEquals($v,$param,"route failed to match argument {$k}");
       }
     }
   }
@@ -145,15 +149,30 @@ class ModulesTest extends \PHPUnit_Framework_TestCase {
   protected function assertCanLoadClass($className) {
     $this->assertTrue(class_exists($className),"Failed to load class '{$className}'");
   }
-  protected function getBootstrap($options=[]) {
-    return new Bootstrap(
-        static::$di,
+
+  protected function getBootstrap($options=[], $config=[], $di=null) {
+    $b = new Bootstrap(
         array_merge(
-            ['basedir'=>static::$basedir],
+            $this->getUserOptions(),
             $options
-        )
+        ),
+        $config
     );
+    $b->setDI($di?:static::$di);
+    return $b;
   }
+
+  protected static function getUserOptions() {
+    if (!self::$userOptions) {
+      self::$userOptions = [
+          'basedir' => static::$basedir,
+          'confdir' => static::$confdir
+      ];
+      file_put_contents(static::$confdir.'/.env','APP_ENV='.Bootstrap::ENV_TESTING);
+    }
+    return self::$userOptions;
+  }
+
   protected function getModuleBootstrap($modules=[],$default=null) {
     if (empty($modules))
       $modules = $this->getModules();

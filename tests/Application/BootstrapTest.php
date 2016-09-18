@@ -12,15 +12,15 @@ class BootstrapTest extends \PHPUnit_Framework_TestCase {
   /**
    * @var \Phalcon\Di
    */
-  static $di;
-  static $basedir;
-  static $confdir;
-  static $appdir;
+  public static $di;
+  public static $basedir;
+  public static $confdir;
+  public static $appdir;
+  public static $userOptions;
   
   const IS_DEFAULT_MODULE = 1;
   const NOT_DEFAULT_MODULE = 0;
   
-  protected static $userOptions;
   
   public static function setUpBeforeClass() {
     static::$basedir = realpath(substr(__DIR__.'/',0,strrpos(__DIR__.'/','/tests/')+7));
