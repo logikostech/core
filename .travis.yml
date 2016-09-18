@@ -11,9 +11,8 @@ cache:
     - ~/cphalcon
 
 before_install:
-  - composer require techpivot/phalcon-ci-installer
+  - composer install --prefer-source --no-interaction --ignore-platform-reqs
   - vendor/bin/install-phalcon.sh
-  - composer install --prefer-source --no-interaction
 
 script:
   - vendor/bin/phpunit
