@@ -1,5 +1,7 @@
 # Core classes required for logikos applications
 [![Travis CI](https://img.shields.io/travis/logikostech/core/master.svg)](https://travis-ci.org/logikostech/core)
+[![Software License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/logikostech/core/master/LICENSE)
+
 Core for LT projects.
 
 ## Logikos\Application\Bootstrap
